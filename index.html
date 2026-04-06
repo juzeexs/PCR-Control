@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCR — Sistema de Controle de Parada Cardíaca</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg">
+        <path class="ecg-line" d="M2,21 L10,21 L14,8 L18,34 L22,14 L26,28 L30,21 L40,21"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <div class="logo-title">PCR Control</div>
+      <div class="logo-sub">Sistema de Parada Cardíaca</div>
+    </div>
+  </div>
+  <div class="header-status">
+    <div>
+      <div id="clock">--:--:--</div>
+      <div id="date-display">--/--/----</div>
+    </div>
+    <div class="status-badge standby" id="status-badge">STANDBY</div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main>
+
+  <!-- LEFT PANEL -->
+  <div class="panel" id="panel-left">
+    <div class="panel-header">
+      <div class="dot red"></div>
+      <span class="panel-title">Controles</span>
+    </div>
+
+    <!-- TIMER PRINCIPAL -->
+    <div class="control-section">
+      <div class="section-label">⏱ Tempo de PCR</div>
+      <div class="main-timer">
+        <div id="elapsed-time">00:00:00</div>
+        <div class="timer-label">HH:MM:SS — INÍCIO DO EVENTO</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-start" onclick="iniciarPCR()">▶ INICIAR</button>
+        <button class="btn btn-stop" onclick="pausarPCR()">⏸ PAUSAR</button>
+        <button class="btn btn-reset" onclick="resetarPCR()">↺ RESETAR SESSÃO</button>
+      </div>
+    </div>
+
+    <!-- CICLO RCP -->
+    <div class="control-section">
+      <div class="section-label">🔄 Ciclo RCP (2 min)</div>
+      <div class="rcp-display">
+        <div id="rcp-timer">02:00</div>
+        <div class="rcp-bar-wrap"><div id="rcp-bar"></div></div>
+        <div id="rcp-cycle-count">Ciclo #0</div>
+      </div>
+      <button class="btn btn-primary" onclick="iniciarCicloRCP()">▶ INICIAR CICLO RCP</button>
+      <button class="btn btn-primary" style="border-color:var(--muted);color:var(--muted);margin-top:4px;" onclick="logPausaRCP()">⏸ REGISTRAR PAUSA RCP</button>
+    </div>
+
+    <!-- DESFIBRILADOR -->
+    <div class="control-section">
+      <div class="section-label">⚡ Desfibrilador</div>
+      <div class="energy-row">
+        <span class="energy-label">Energia (J):</span>
+        <input class="inp" type="number" id="energia-input" value="200" min="50" max="360" style="width:90px;">
+        <span style="font-size:10px;color:var(--muted);">joules</span>
+      </div>
+      <button class="btn btn-desfib" id="btn-desfib" onclick="registrarDesfibrilacao()">APLICAR CHOQUE</button>
+    </div>
+
+    <!-- REGISTRO DE MEDICAÇÕES -->
+    <div class="control-section">
+      <div class="section-label">💊 Medicação</div>
+      <div class="med-form">
+        <div class="input-group">
+          <span class="input-label">Medicamento</span>
+          <select class="inp" id="med-nome">
+            <option value="">Selecionar...</option>
+            <option>Epinefrina 1mg</option>
+            <option>Amiodarona 300mg</option>
+            <option>Amiodarona 150mg</option>
+            <option>Atropina 1mg</option>
+            <option>Bicarbonato de Sódio 50mEq</option>
+            <option>Sulfato de Magnésio 2g</option>
+            <option>Adenosina 6mg</option>
+            <option>Lidocaína 1mg/kg</option>
+            <option>Vasopressina 40U</option>
+            <option value="_custom">Outro...</option>
+          </select>
+        </div>
+        <div class="input-group" id="custom-med-group" style="display:none;">
+          <span class="input-label">Nome / Dose</span>
+          <input class="inp" type="text" id="med-custom" placeholder="Ex: Dopamina 5mcg/kg/min">
+        </div>
+        <div class="input-group">
+          <span class="input-label">Via</span>
+          <select class="inp" id="med-via">
+            <option>IV</option>
+            <option>IO</option>
+            <option>ETT</option>
+            <option>SC</option>
+            <option>IM</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <span class="input-label">Obs. (opcional)</span>
+          <input class="inp" type="text" id="med-obs" placeholder="Ex: flush 20ml SF">
+        </div>
+        <button class="btn btn-primary" onclick="registrarMedicacao()">+ REGISTRAR MEDICAÇÃO</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CENTER PANEL: TIMELINE -->
+  <div class="panel" id="panel-center">
+    <div class="panel-header">
+      <div class="dot red" id="dot-timeline"></div>
+      <span class="panel-title">Linha do Tempo</span>
+      <span class="counter-badge" id="event-count">0</span>
+    </div>
+
+    <!-- ECG STRIP -->
+    <div class="ecg-strip">
+      <canvas id="ecg-canvas"></canvas>
+    </div>
+
+    <!-- ALERTS -->
+    <div id="alerts-banner"></div>
+
+    <!-- TIMELINE -->
+    <div class="timeline-wrap" id="timeline">
+      <div class="timeline-empty" id="empty-msg">
+        ⊘ Nenhum evento registrado.<br>Inicie a sessão para começar.
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL: RESUMO -->
+  <div class="panel" id="panel-right">
+    <div class="panel-header">
+      <div class="dot green"></div>
+      <span class="panel-title">Resumo</span>
+    </div>
+
+    <!-- STATS -->
+    <div class="stat-card">
+      <div class="stat-value highlight-red" id="stat-tempo">00:00</div>
+      <div class="stat-label">Tempo total PCR</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value highlight-blue" id="stat-epinefrina">0</div>
+      <div class="stat-label">Doses Epinefrina</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value highlight-amber" id="stat-choques">0</div>
+      <div class="stat-label">Choques aplicados</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value highlight-green" id="stat-ciclos">0</div>
+      <div class="stat-label">Ciclos RCP</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-total-med">0</div>
+      <div class="stat-label">Total de medicações</div>
+    </div>
+
+    <!-- RITMO ATUAL -->
+    <div class="panel-header" style="margin-top:0;">
+      <div class="dot" style="background:var(--cyan);box-shadow:0 0 6px var(--cyan)"></div>
+      <span class="panel-title">Ritmo Cardíaco</span>
+    </div>
+    <div class="ritmo-atual">
+      <div class="ritmo-atual-label">Ritmo atual</div>
+      <div id="ritmo-display">—</div>
+    </div>
+    <div class="rhythm-btn-grid">
+      <button class="rhythm-btn" onclick="setRitmo('FV')">FV</button>
+      <button class="rhythm-btn" onclick="setRitmo('TV sem pulso')">TVSP</button>
+      <button class="rhythm-btn" onclick="setRitmo('AESP')">AESP</button>
+      <button class="rhythm-btn" onclick="setRitmo('Assistolia')">Assis.</button>
+      <button class="rhythm-btn" onclick="setRitmo('RS')">RS</button>
+      <button class="rhythm-btn" onclick="setRitmo('BCRE')">BCRE</button>
+      <button class="rhythm-btn" onclick="setRitmo('BAV III')">BAV III</button>
+      <button class="rhythm-btn" onclick="setRitmo('Outro')">Outro</button>
+    </div>
+
+    <!-- RETORNO CIRCULAÇÃO -->
+    <div style="padding: 0 20px 16px;">
+      <button class="btn" style="width:100%;border-color:var(--green);color:var(--green);padding:12px;"
+        onclick="registrarRetorno()">✓ RETORNO ESPONTÂNEO</button>
+    </div>
+
+    <!-- OBSERVAÇÃO -->
+    <div class="panel-header">
+      <div class="dot amber"></div>
+      <span class="panel-title">Observação</span>
+    </div>
+    <div class="obs-form">
+      <textarea class="inp" id="obs-text" rows="3" placeholder="Anotação livre..." style="resize:vertical;margin-top:12px;"></textarea>
+      <button class="btn btn-primary" style="margin-top:8px;" onclick="registrarObs()">+ REGISTRAR OBS.</button>
+    </div>
+
+    <!-- LISTA DE MEDICAÇÕES -->
+    <div class="panel-header">
+      <div class="dot blue"></div>
+      <span class="panel-title">Medicações</span>
+    </div>
+    <div class="med-list" id="med-list">
+      <div style="color:var(--muted);font-size:11px;text-align:center;padding:16px;">Nenhuma medicação</div>
+    </div>
+
+  </div>
+</main>
+
+<div id="toast"></div>
+</body>
+<script src="script.js"></script>
+</html>
